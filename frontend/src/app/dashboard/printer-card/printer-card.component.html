@@ -1,0 +1,61 @@
+<!-- Printer card -->
+<div class="printer-card flex flex-col gap-4">
+
+  <!-- Header row: name + state badge -->
+  <div class="flex items-start justify-between">
+    <div>
+      <h2 class="font-semibold text-white text-sm truncate max-w-[160px]" [title]="printer.name">
+        {{ printer.name }}
+      </h2>
+      <p class="text-xs text-gray-500 mt-0.5">{{ printer.brand }} {{ printer.model }}</p>
+    </div>
+    <!-- State dot + label -->
+    <span class="flex items-center text-xs font-medium text-gray-300">
+      <span class="state-dot" [ngClass]="stateLower"></span>
+      {{ stateLabel }}
+    </span>
+  </div>
+
+  <!-- Progress bar (only when printing or paused) -->
+  @if (isPrinting || isPaused) {
+    <div>
+      <div class="flex justify-between text-xs text-gray-400 mb-1">
+        <span>{{ status?.currentFile ?? 'Unknown file' }}</span>
+        <span>{{ progressPercent | number:'1.0-0' }}%</span>
+      </div>
+      <div class="w-full bg-gray-800 rounded-full h-1.5">
+        <div
+          class="h-1.5 rounded-full transition-all duration-500"
+          [class.bg-green-500]="isPrinting"
+          [class.bg-amber-400]="isPaused"
+          [style.width.%]="progressPercent">
+        </div>
+      </div>
+      <p class="text-xs text-gray-500 mt-1">{{ remainingLabel }} remaining</p>
+    </div>
+  }
+
+  <!-- Temperature row -->
+  <div class="grid grid-cols-2 gap-2 text-xs">
+    <div class="bg-gray-800 rounded-lg p-2">
+      <p class="text-gray-500 mb-0.5">Bed</p>
+      <p class="text-white font-mono">{{ bedTemp }}</p>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-2">
+      <p class="text-gray-500 mb-0.5">Nozzle</p>
+      <p class="text-white font-mono">{{ nozzleTemp }}</p>
+    </div>
+  </div>
+
+  <!-- Control buttons -->
+  <div class="flex gap-2 pt-1">
+    @if (isPrinting) {
+      <button class="btn-ghost text-xs flex-1" (click)="pause.emit()">Pause</button>
+      <button class="btn-ghost text-xs text-red-400 hover:text-red-300" (click)="cancel.emit()">Cancel</button>
+    }
+    @if (isPaused) {
+      <button class="btn-primary text-xs flex-1" (click)="resume.emit()">Resume</button>
+      <button class="btn-ghost text-xs text-red-400 hover:text-red-300" (click)="cancel.emit()">Cancel</button>
+    }
+  </div>
+</div>

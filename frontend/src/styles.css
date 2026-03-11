@@ -1,0 +1,35 @@
+/* Tailwind base layers — must be at the top of the global stylesheet */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom utility classes ─────────────────────────────────────────────────
+   Define reusable component styles here using @layer so Tailwind can tree-shake them.
+*/
+@layer components {
+  /* Used on every printer card on the dashboard */
+  .printer-card {
+    @apply bg-gray-900 rounded-2xl border border-gray-800 p-5 shadow-lg
+           hover:border-gray-600 transition-colors duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 text-white font-semibold
+           px-4 py-2 rounded-lg transition-colors duration-150;
+  }
+
+  .btn-ghost {
+    @apply text-gray-400 hover:text-white hover:bg-gray-800
+           px-3 py-1.5 rounded-md transition-colors duration-150;
+  }
+}
+
+/* ── State indicator dots ────────────────────────────────────────────────── */
+.state-dot {
+  @apply inline-block w-2 h-2 rounded-full mr-1.5;
+}
+.state-dot.printing { @apply bg-green-400; }
+.state-dot.paused   { @apply bg-amber-400; }
+.state-dot.error    { @apply bg-red-500; }
+.state-dot.idle     { @apply bg-slate-400; }
+.state-dot.offline  { @apply bg-slate-600; }

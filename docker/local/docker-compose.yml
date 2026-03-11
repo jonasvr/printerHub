@@ -1,0 +1,39 @@
+version: '3.8'
+
+# This file spins up everything PrinterHub needs to run locally:
+# - PostgreSQL for persistent data
+# - Mosquitto as a local MQTT broker (bridges to Bambu printers)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: printerhub-postgres
+    environment:
+      POSTGRES_DB: printerhub
+      POSTGRES_USER: ${DB_USER:-printerhub}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-printerhub_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-printerhub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: printerhub-mosquitto
+    ports:
+      - "1883:1883"   # Standard MQTT (TCP)
+      - "9001:9001"   # MQTT over WebSockets (browser clients)
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  mosquitto_logs:

@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: printerhub
+
+  # ── Database ──────────────────────────────────────────────────────────────
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/printerhub}
+    username: ${DB_USER:printerhub}
+    password: ${DB_PASSWORD:printerhub_secret}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # 'validate' = Hibernate checks the schema matches entities but won't change it.
+      # Use 'create-drop' during early development if you want auto schema creation.
+      ddl-auto: update   # Switch to 'validate' + Flyway migrations in Phase 3
+    show-sql: false       # Set to true for SQL debugging; noisy in production
+    properties:
+      hibernate:
+        format_sql: true
+
+# ── Server ────────────────────────────────────────────────────────────────
+server:
+  port: 8080
+
+# ── Bambu adapter ─────────────────────────────────────────────────────────
+bambu:
+  mqtt-port: 8883
+  skip-tls-verify: true   # Bambu uses self-signed TLS certs; disable verification for LAN
+
+# ── Logging ───────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.printerhub: DEBUG       # Verbose for our own code
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN

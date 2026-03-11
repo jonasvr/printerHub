@@ -1,0 +1,39 @@
+<!-- Main dashboard layout -->
+<div class="min-h-screen bg-gray-950 p-6">
+
+  <!-- Header -->
+  <header class="mb-8 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white tracking-tight">PrinterHub</h1>
+      <p class="text-sm text-gray-400 mt-0.5">{{ printers.length }} printer{{ printers.length !== 1 ? 's' : '' }} registered</p>
+    </div>
+    <button class="btn-primary">+ Add Printer</button>
+  </header>
+
+  <!-- Empty state -->
+  @if (printers.length === 0) {
+    <div class="flex flex-col items-center justify-center py-32 text-gray-500">
+      <svg class="w-16 h-16 mb-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+      </svg>
+      <p class="text-lg font-medium">No printers yet</p>
+      <p class="text-sm mt-1">Click "Add Printer" to register your first printer.</p>
+    </div>
+  }
+
+  <!-- Printer grid -->
+  @if (printers.length > 0) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      @for (printer of printers; track printer.id) {
+        <ph-printer-card
+          [printer]="printer"
+          [status]="statusMap.get(printer.id) ?? null"
+          (pause)="onPause(printer.id)"
+          (resume)="onResume(printer.id)"
+          (cancel)="onCancel(printer.id)"
+        />
+      }
+    </div>
+  }
+</div>
