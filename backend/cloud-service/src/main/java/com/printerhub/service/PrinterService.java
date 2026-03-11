@@ -6,6 +6,8 @@ import com.printerhub.core.entity.Printer;
 import com.printerhub.core.repository.PrinterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,21 @@ public class PrinterService {
     private final PrinterRepository printerRepository;
     private final AdapterRegistry adapterRegistry;
     private final SimpMessagingTemplate messagingTemplate; // sends WebSocket messages
+
+    // ── Startup ─────────────────────────────────────────────────────────────
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void connectAllPrintersOnStartup() {
+        List<Printer> active = printerRepository.findAllByActiveTrue();
+        log.info("Reconnecting {} printer(s) on startup", active.size());
+        for (Printer printer : active) {
+            try {
+                adapterRegistry.forBrand(printer.getBrand()).connect(printer);
+            } catch (Exception e) {
+                log.error("Failed to reconnect printer {} on startup: {}", printer.getName(), e.getMessage());
+            }
+        }
+    }
 
     // ── Registration ────────────────────────────────────────────────────────
 

@@ -10,7 +10,7 @@
 .PHONY: help up down logs ps \
         backend backend-build backend-run \
         frontend frontend-install frontend-dev \
-        build clean env-check
+        build clean env-check stop
 
 # ── Colours for help output ────────────────────────────────────────────────
 CYAN  := \033[36m
@@ -95,6 +95,11 @@ dev-all: up ## Start everything concurrently (requires: npm i -g concurrently)
 
 # ── Utilities ──────────────────────────────────────────────────────────────
 build: backend-build frontend-build ## Build everything for production
+
+stop: ## Stop backend (8080), frontend (4200), and Docker services
+	-@netstat -ano 2>/dev/null | grep ':8080 ' | awk '{print $$5}' | head -1 | xargs -r -I{} taskkill //PID {} //F 2>/dev/null || true
+	-@netstat -ano 2>/dev/null | grep ':4200 ' | awk '{print $$5}' | head -1 | xargs -r -I{} taskkill //PID {} //F 2>/dev/null || true
+	cd $(DOCKER_DIR) && docker compose down
 
 kill-backend: ## Kill whatever is running on port 8080
 	-@netstat -ano 2>/dev/null | grep ':8080 ' | awk '{print $$5}' | head -1 | xargs -r -I{} taskkill //PID {} //F 2>/dev/null || true

@@ -154,6 +154,8 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             JsonNode root = objectMapper.readTree(message.getPayload());
             PrinterStatusUpdate update = parseBambuPayload(printerId, root);
             statusCache.put(printerId, update);
+            log.debug("MQTT update from {} — state={}, progress={}%, nozzle={}°C",
+                    serial, update.state(), update.progressPercent(), update.nozzleTempActual());
 
         } catch (Exception e) {
             log.debug("Could not parse Bambu MQTT message: {}", e.getMessage());
