@@ -18,6 +18,13 @@ export interface Printer {
   updatedAt: string;
 }
 
+/** Mirrors the Java MqttLogEntry record */
+export interface MqttLogEntry {
+  printerId: string;
+  timestamp: string;
+  payload: string;   // raw JSON string
+}
+
 /** Mirrors the Java PrinterStatusUpdate record — pushed over WebSocket */
 export interface PrinterStatusUpdate {
   printerId: string;
@@ -31,4 +38,5 @@ export interface PrinterStatusUpdate {
   remainingMinutes: number;
   timestamp: string;
   mqttConnected: boolean;
+  connectionError?: string | null;
 }

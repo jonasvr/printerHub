@@ -52,12 +52,40 @@ public class PrinterService {
         }
     }
 
+    @Scheduled(fixedDelay = 30_000)
+    public void retryDisconnectedPrinters() {
+        printerRepository.findAllByActiveTrue().forEach(printer -> {
+            PrinterStatusUpdate status = adapterRegistry.forBrand(printer.getBrand())
+                                                        .getStatus(printer.getId());
+            if (!status.mqttConnected()) {
+                log.info("Retrying MQTT connection for printer {}", printer.getName());
+                adapterRegistry.forBrand(printer.getBrand()).connect(printer);
+            }
+        });
+    }
+
     // ── Registration ────────────────────────────────────────────────────────
 
     @Transactional
     public Printer registerPrinter(Printer printer) {
         Printer saved = printerRepository.save(printer);
         // Immediately open a connection via the appropriate adapter
+        adapterRegistry.forBrand(saved.getBrand()).connect(saved);
+        return saved;
+    }
+
+    @Transactional
+    public Printer updatePrinter(UUID printerId, Printer patch) {
+        Printer existing = findOrThrow(printerId);
+        existing.setName(patch.getName());
+        existing.setModel(patch.getModel());
+        existing.setSerialNumber(patch.getSerialNumber());
+        existing.setIpAddress(patch.getIpAddress());
+        existing.setAccessCode(patch.getAccessCode());
+        existing.setBrand(patch.getBrand());
+        Printer saved = printerRepository.save(existing);
+        // Reconnect so the adapter picks up any changed IP/credentials
+        adapterRegistry.forBrand(saved.getBrand()).disconnect(printerId);
         adapterRegistry.forBrand(saved.getBrand()).connect(saved);
         return saved;
     }
@@ -115,6 +143,11 @@ public class PrinterService {
 
     public List<Printer> getAllActivePrinters() {
         return printerRepository.findAllByActiveTrue();
+    }
+
+    public List<com.printerhub.core.adapter.MqttLogEntry> getMqttLogs(UUID printerId) {
+        Printer printer = findOrThrow(printerId);
+        return adapterRegistry.forBrand(printer.getBrand()).getRecentLogs(printerId);
     }
 
     public Printer getPrinter(UUID printerId) {

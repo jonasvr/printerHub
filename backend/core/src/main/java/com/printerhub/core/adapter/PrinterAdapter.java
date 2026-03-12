@@ -3,6 +3,7 @@ package com.printerhub.core.adapter;
 import com.printerhub.core.entity.Printer;
 import com.printerhub.core.entity.PrinterBrand;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -57,4 +58,12 @@ public interface PrinterAdapter {
 
     /** Cancel the current print. */
     void cancel(UUID printerId);
+
+    /**
+     * Return the most recent raw MQTT log entries for this printer.
+     * Default returns empty — only adapters that buffer logs need to override this.
+     */
+    default List<MqttLogEntry> getRecentLogs(UUID printerId) {
+        return List.of();
+    }
 }

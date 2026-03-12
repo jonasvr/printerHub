@@ -1,0 +1,45 @@
+<!-- Backdrop -->
+<div class="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4" (click)="closed.emit()">
+
+  <!-- Panel -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-3xl flex flex-col z-50"
+       style="max-height: 80vh"
+       (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+      <div>
+        <h2 class="text-white font-semibold">MQTT Logs — {{ printer.name }}</h2>
+        <p class="text-xs text-gray-500 mt-0.5">{{ logs.length }} message{{ logs.length !== 1 ? 's' : '' }} · newest first</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button class="btn-ghost text-xs" (click)="clear()">Clear</button>
+        <button class="text-gray-500 hover:text-gray-300 transition-colors" (click)="closed.emit()">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Log list -->
+    <div #logContainer class="overflow-y-auto flex-1 p-4 space-y-3">
+
+      @if (logs.length === 0) {
+        <p class="text-center text-gray-600 text-sm py-12">
+          No messages yet — waiting for MQTT activity…
+        </p>
+      }
+
+      @for (entry of logs; track entry.timestamp) {
+        <div class="rounded-lg bg-gray-800/60 border border-gray-700/50 overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700/50 bg-gray-800">
+            <span class="text-xs font-mono text-gray-400">{{ formatTime(entry.timestamp) }}</span>
+          </div>
+          <pre class="text-xs font-mono text-gray-300 p-3 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">{{ formatJson(entry.payload) }}</pre>
+        </div>
+      }
+    </div>
+
+  </div>
+</div>

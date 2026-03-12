@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Printer } from '../models/printer.model';
+import { MqttLogEntry, Printer } from '../models/printer.model';
 import { environment } from '../../../environments/environment';
 
 /**
@@ -31,6 +31,10 @@ export class PrinterService {
     return this.http.post<Printer>(this.base, printer);
   }
 
+  update(id: string, printer: Partial<Printer>): Observable<Printer> {
+    return this.http.patch<Printer>(`${this.base}/${id}`, printer);
+  }
+
   remove(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${id}`);
   }
@@ -45,5 +49,9 @@ export class PrinterService {
 
   cancel(id: string): Observable<void> {
     return this.http.post<void>(`${this.base}/${id}/cancel`, {});
+  }
+
+  getLogs(id: string): Observable<MqttLogEntry[]> {
+    return this.http.get<MqttLogEntry[]>(`${this.base}/${id}/mqtt-logs`);
   }
 }

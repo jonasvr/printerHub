@@ -1,5 +1,6 @@
 package com.printerhub.controller;
 
+import com.printerhub.core.adapter.MqttLogEntry;
 import com.printerhub.core.entity.Printer;
 import com.printerhub.service.PrinterService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +16,9 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/printers")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "http://localhost:4200",
+             methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PATCH,
+                        RequestMethod.DELETE, RequestMethod.OPTIONS})
 @RequiredArgsConstructor
 @Tag(name = "Printers", description = "Register, query and control 3D printers")
 public class PrinterController {
@@ -45,6 +48,13 @@ public class PrinterController {
         return printerService.registerPrinter(printer);
     }
 
+    @Operation(summary = "Update a printer's details and reconnect its adapter")
+    @ApiResponse(responseCode = "200", description = "Printer updated")
+    @PatchMapping("/{id}")
+    public Printer updatePrinter(@PathVariable UUID id, @RequestBody Printer printer) {
+        return printerService.updatePrinter(id, printer);
+    }
+
     @Operation(summary = "Remove a printer", description = "Soft-delete: sets active=false, disconnects the adapter.")
     @ApiResponse(responseCode = "204", description = "Printer removed")
     @DeleteMapping("/{id}")
@@ -72,5 +82,11 @@ public class PrinterController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void cancel(@PathVariable UUID id) {
         printerService.cancel(id);
+    }
+
+    @Operation(summary = "Recent MQTT log entries for a printer (last 100, newest first)")
+    @GetMapping("/{id}/mqtt-logs")
+    public List<MqttLogEntry> getMqttLogs(@PathVariable UUID id) {
+        return printerService.getMqttLogs(id);
     }
 }

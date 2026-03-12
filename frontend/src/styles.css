@@ -22,6 +22,17 @@
     @apply text-gray-400 hover:text-white hover:bg-gray-800
            px-3 py-1.5 rounded-md transition-colors duration-150;
   }
+
+  .input {
+    @apply bg-gray-800 border border-gray-700 text-white text-sm
+           rounded-lg px-3 py-2 outline-none
+           focus:border-brand-500 focus:ring-1 focus:ring-brand-500
+           placeholder-gray-500 transition-colors duration-150;
+  }
+
+  select.input {
+    @apply cursor-pointer;
+  }
 }
 
 /* ── State indicator dots ────────────────────────────────────────────────── */

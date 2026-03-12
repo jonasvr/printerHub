@@ -2,6 +2,8 @@ package com.printerhub.adapter.bambu;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.printerhub.core.adapter.MqttLogEntry;
+import com.printerhub.core.adapter.MqttMessageEvent;
 import com.printerhub.core.adapter.PrinterAdapter;
 import com.printerhub.core.adapter.PrinterStatusUpdate;
 import com.printerhub.core.entity.Printer;
@@ -10,6 +12,7 @@ import com.printerhub.core.entity.PrinterState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import javax.net.ssl.SSLContext;
@@ -24,6 +27,10 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,6 +58,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
 
     private final BambuMqttProperties props;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Keyed by printerId → active MQTT client
     private final Map<UUID, MqttClient> clients = new ConcurrentHashMap<>();
@@ -61,6 +69,10 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
     // Serial ↔ printerId — populated in connect(), avoids DB lookups on every MQTT message
     private final Map<String, UUID> serialToId = new ConcurrentHashMap<>();
     private final Map<UUID, String> idToSerial = new ConcurrentHashMap<>();
+
+    // Ring buffer of the last 100 raw MQTT messages per printer, for the log dialog
+    private static final int LOG_BUFFER_SIZE = 100;
+    private final Map<UUID, Deque<MqttLogEntry>> logBuffers = new ConcurrentHashMap<>();
 
     // ── PrinterAdapter contract ──────────────────────────────────────────────
 
@@ -98,12 +110,27 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             clients.put(printer.getId(), client);
             serialToId.put(printer.getSerialNumber(), printer.getId());
             idToSerial.put(printer.getId(), printer.getSerialNumber());
+            // Seed cache so the dashboard reflects the connection immediately,
+            // before the first MQTT message arrives (which may take a few seconds).
+            // Also clears any connectionError from a previous failed attempt.
+            statusCache.put(printer.getId(), new PrinterStatusUpdate(
+                    printer.getId(), PrinterState.IDLE,
+                    0, null, 0, 0, 0, 0, -1, Instant.now(), true, null
+            ));
             log.info("Connected to Bambu printer {} ({})", printer.getName(), printer.getSerialNumber());
 
         } catch (MqttException e) {
-            log.error("Failed to connect to Bambu printer {} (reason code {}): {}", printer.getName(), e.getReasonCode(), e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
-            // Put an OFFLINE snapshot so the dashboard shows a meaningful state
-            cacheOfflineStatus(printer.getId());
+            String hint = switch (e.getReasonCode()) {
+                case MqttException.REASON_CODE_BROKER_UNAVAILABLE ->
+                    "Broker unavailable — is the printer powered on and reachable at " + printer.getIpAddress() + "?";
+                case MqttException.REASON_CODE_FAILED_AUTHENTICATION,
+                     MqttException.REASON_CODE_NOT_AUTHORIZED ->
+                    "Authentication failed — check the access code.";
+                default ->
+                    "Connection failed (MQTT code " + e.getReasonCode() + ")";
+            };
+            log.error("Failed to connect to Bambu printer {} (reason code {}): {}", printer.getName(), e.getReasonCode(), hint);
+            statusCache.put(printer.getId(), offlineStatus(printer.getId(), hint));
         }
     }
 
@@ -133,7 +160,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                 cached.printerId(), cached.state(), cached.progressPercent(),
                 cached.currentFile(), cached.bedTempActual(), cached.bedTempTarget(),
                 cached.nozzleTempActual(), cached.nozzleTempTarget(),
-                cached.remainingMinutes(), cached.timestamp(), connected
+                cached.remainingMinutes(), cached.timestamp(), connected, cached.connectionError()
         );
     }
 
@@ -152,6 +179,16 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         publishCommand(printerId, buildCommand("stop"));
     }
 
+    @Override
+    public List<MqttLogEntry> getRecentLogs(UUID printerId) {
+        Deque<MqttLogEntry> buf = logBuffers.get(printerId);
+        if (buf == null) return List.of();
+        // Return a snapshot (newest-first) so the UI shows recent messages at the top
+        List<MqttLogEntry> snapshot = new ArrayList<>(buf);
+        java.util.Collections.reverse(snapshot);
+        return snapshot;
+    }
+
     // ── MqttCallback ────────────────────────────────────────────────────────
 
     /**
@@ -168,7 +205,17 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             if (printerId == null) return;
 
             JsonNode root = objectMapper.readTree(message.getPayload());
-            log.debug("Raw MQTT [{}]: {}", serial, objectMapper.writeValueAsString(root));
+            String rawJson = objectMapper.writeValueAsString(root);
+            log.debug("Raw MQTT [{}]: {}", serial, rawJson);
+
+            // Buffer the raw message and fire an event for the WebSocket log broadcaster
+            MqttLogEntry logEntry = new MqttLogEntry(printerId, Instant.now(), rawJson);
+            logBuffers.computeIfAbsent(printerId, id -> new ArrayDeque<>())
+                      .addLast(logEntry);
+            if (logBuffers.get(printerId).size() > LOG_BUFFER_SIZE) {
+                logBuffers.get(printerId).pollFirst();
+            }
+            eventPublisher.publishEvent(new MqttMessageEvent(this, logEntry));
 
             JsonNode print = root.path("print");
             PrinterStatusUpdate update;
@@ -194,7 +241,8 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                         current.nozzleTempTarget(),
                         current.remainingMinutes(),
                         Instant.now(),
-                        true
+                        true,
+                        null
                 );
             }
             statusCache.put(printerId, update);
@@ -209,7 +257,12 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
     @Override
     public void connectionLost(Throwable cause) {
         log.warn("Lost MQTT connection: {}", cause.getMessage());
-        // TODO Phase 2: implement reconnect with exponential back-off
+        clients.forEach((printerId, client) -> {
+            if (!client.isConnected()) {
+                statusCache.put(printerId, offlineStatus(printerId,
+                    "Connection lost — " + cause.getMessage()));
+            }
+        });
     }
 
     @Override
@@ -240,7 +293,8 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                 print.path("nozzle_target_temper").asInt(0),
                 print.path("mc_remaining_time").asInt(-1),
                 Instant.now(),
-                true  // message arrived → MQTT is connected
+                true,  // message arrived → MQTT is connected
+                null   // no error
         );
     }
 
@@ -344,14 +398,14 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         }
     }
 
-    private void cacheOfflineStatus(UUID printerId) {
-        statusCache.put(printerId, offlineStatus(printerId));
+    private PrinterStatusUpdate offlineStatus(UUID printerId, String error) {
+        return new PrinterStatusUpdate(
+                printerId, PrinterState.OFFLINE,
+                0, null, 0, 0, 0, 0, -1, Instant.now(), false, error
+        );
     }
 
     private PrinterStatusUpdate offlineStatus(UUID printerId) {
-        return new PrinterStatusUpdate(
-                printerId, PrinterState.OFFLINE,
-                0, null, 0, 0, 0, 0, -1, Instant.now(), false
-        );
+        return offlineStatus(printerId, null);
     }
 }

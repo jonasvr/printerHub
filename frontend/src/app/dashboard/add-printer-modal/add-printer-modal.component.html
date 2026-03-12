@@ -1,0 +1,73 @@
+<!-- Backdrop -->
+<div class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" (click)="closed.emit()">
+
+  <!-- Panel — stop click propagation so clicking inside doesn't close -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md p-6 z-50" (click)="$event.stopPropagation()">
+
+    <h2 class="text-white font-semibold text-lg mb-5">{{ title }}</h2>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-4">
+
+      <!-- Name -->
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Name <span class="text-red-400">*</span></label>
+        <input formControlName="name" type="text" placeholder="e.g. Left Bambu"
+               class="input w-full" autocomplete="off" />
+      </div>
+
+      <!-- Brand + Model side-by-side -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Brand <span class="text-red-400">*</span></label>
+          <select formControlName="brand" class="input w-full">
+            @for (b of brands; track b) {
+              <option [value]="b">{{ b }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Model</label>
+          <input formControlName="model" type="text" placeholder="e.g. P1S"
+                 class="input w-full" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- Serial number -->
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Serial number</label>
+        <input formControlName="serialNumber" type="text" placeholder="e.g. 01P00A410600839"
+               class="input w-full font-mono" autocomplete="off" />
+      </div>
+
+      <!-- LAN fields — shown only for Bambu -->
+      @if (needsLan) {
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">IP address</label>
+            <input formControlName="ipAddress" type="text" placeholder="192.168.1.x"
+                   class="input w-full font-mono" autocomplete="off" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Access code</label>
+            <input formControlName="accessCode" type="password" placeholder="8 digits"
+                   class="input w-full font-mono" autocomplete="off" />
+          </div>
+        </div>
+      }
+
+      <!-- Error -->
+      @if (error) {
+        <p class="text-red-400 text-xs">{{ error }}</p>
+      }
+
+      <!-- Actions -->
+      <div class="flex justify-end gap-3 pt-1">
+        <button type="button" class="btn-ghost text-sm" (click)="closed.emit()">Cancel</button>
+        <button type="submit" class="btn-primary text-sm" [disabled]="form.invalid || saving">
+          {{ saving ? 'Saving…' : submitLabel }}
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
