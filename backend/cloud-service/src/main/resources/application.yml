@@ -31,6 +31,6 @@ bambu:
 # ── Logging ───────────────────────────────────────────────────────────────
 logging:
   level:
-    com.printerhub: DEBUG       # Verbose for our own code
+    com.printerhub: INFO       # Verbose for our own code DEBUG for mqtt message logging
     org.springframework.web: INFO
     org.hibernate.SQL: WARN

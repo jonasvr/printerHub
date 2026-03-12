@@ -7,7 +7,15 @@
       <h2 class="font-semibold text-white text-sm truncate max-w-[160px]" [title]="printer.name">
         {{ printer.name }}
       </h2>
-      <p class="text-xs text-gray-500 mt-0.5">{{ printer.brand }} {{ printer.model }}</p>
+      <p class="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+        {{ printer.brand }} {{ printer.model }}
+        <span
+          class="inline-block w-1.5 h-1.5 rounded-full"
+          [class.bg-green-400]="status?.mqttConnected"
+          [class.bg-gray-600]="!status?.mqttConnected"
+          [title]="status?.mqttConnected ? 'MQTT connected' : 'MQTT disconnected'">
+        </span>
+      </p>
     </div>
     <!-- State dot + label -->
     <span class="flex items-center text-xs font-medium text-gray-300">
@@ -31,7 +39,7 @@
           [style.width.%]="progressPercent">
         </div>
       </div>
-      <p class="text-xs text-gray-500 mt-1">{{ remainingLabel }} remaining</p>
+      <p class="text-xs text-gray-500 mt-1">{{ elapsedLabel }} elapsed · {{ remainingLabel }} remaining · est. {{ totalLabel }} total</p>
     </div>
   }
 

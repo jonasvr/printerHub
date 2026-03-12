@@ -9,7 +9,7 @@
 
 .PHONY: help up down logs ps \
         backend backend-build backend-run \
-        frontend frontend-install frontend-dev \
+        frontend frontend-install frontend-run \
         build clean env-check stop
 
 # ── Colours for help output ────────────────────────────────────────────────
@@ -72,7 +72,7 @@ frontend-run: ## Start Angular dev server (port 4200)
 frontend-build: ## Build Angular for production
 	cd $(FRONTEND_DIR) && npx ng build --configuration production
 
-frontend: frontend-install frontend-dev ## Install deps then start dev server
+frontend: frontend-install frontend-run ## Install deps then start dev server
 
 # ── Combined shortcuts ─────────────────────────────────────────────────────
 dev: up ## Start infra + print instructions for backend & frontend
@@ -80,7 +80,7 @@ dev: up ## Start infra + print instructions for backend & frontend
 	@echo "Infrastructure is up. Now open two more terminals and run:"
 	@echo ""
 	@echo "  Terminal 2:  make backend-run"
-	@echo "  Terminal 3:  make frontend-dev"
+	@echo "  Terminal 3:  make frontend-run"
 	@echo ""
 	@echo "Or, if you have 'concurrently' installed globally:"
 	@echo "  make dev-all"

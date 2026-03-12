@@ -72,6 +72,29 @@ make help
 
 ---
 
+## Debug logging
+
+Set `logging.level.com.printerhub: DEBUG` in `backend/cloud-service/src/main/resources/application.yml` (it is on by default in dev) to see:
+
+- **Raw MQTT messages** — every incoming JSON payload from a printer, labelled by serial number
+- **Filtered status updates** — only messages that contain `gcode_state` (full snapshots) or relevant partial fields (temps, progress) that actually update the dashboard
+
+```
+DEBUG Raw MQTT [01P00A410600839]: {"print":{"gcode_state":"RUNNING","nozzle_temper":220,...}}
+DEBUG MQTT update from 01P00A410600839 — state=PRINTING, progress=42.0%, nozzle=220°C
+```
+
+To turn off verbose MQTT logging without losing other debug output, set the adapter specifically:
+
+```yaml
+logging:
+  level:
+    com.printerhub: DEBUG
+    com.printerhub.adapter.bambu: INFO   # suppress raw MQTT lines
+```
+
+---
+
 ## Project structure
 
 ```

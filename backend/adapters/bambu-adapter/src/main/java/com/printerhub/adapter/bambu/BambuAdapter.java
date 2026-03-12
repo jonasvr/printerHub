@@ -13,8 +13,15 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.stereotype.Component;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Map;
@@ -94,7 +101,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             log.info("Connected to Bambu printer {} ({})", printer.getName(), printer.getSerialNumber());
 
         } catch (MqttException e) {
-            log.error("Failed to connect to Bambu printer {}: {}", printer.getName(), e.getMessage());
+            log.error("Failed to connect to Bambu printer {} (reason code {}): {}", printer.getName(), e.getReasonCode(), e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
             // Put an OFFLINE snapshot so the dashboard shows a meaningful state
             cacheOfflineStatus(printer.getId());
         }
@@ -117,8 +124,17 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
 
     @Override
     public PrinterStatusUpdate getStatus(UUID printerId) {
-        // Return cached value; MQTT adapter is push-based (printer sends updates)
-        return statusCache.getOrDefault(printerId, offlineStatus(printerId));
+        PrinterStatusUpdate cached = statusCache.get(printerId);
+        if (cached == null) return offlineStatus(printerId);
+        // Re-stamp mqttConnected with the live socket state each poll cycle
+        boolean connected = clients.containsKey(printerId) && clients.get(printerId).isConnected();
+        if (cached.mqttConnected() == connected) return cached;
+        return new PrinterStatusUpdate(
+                cached.printerId(), cached.state(), cached.progressPercent(),
+                cached.currentFile(), cached.bedTempActual(), cached.bedTempTarget(),
+                cached.nozzleTempActual(), cached.nozzleTempTarget(),
+                cached.remainingMinutes(), cached.timestamp(), connected
+        );
     }
 
     @Override
@@ -152,7 +168,35 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             if (printerId == null) return;
 
             JsonNode root = objectMapper.readTree(message.getPayload());
-            PrinterStatusUpdate update = parseBambuPayload(printerId, root);
+            log.debug("Raw MQTT [{}]: {}", serial, objectMapper.writeValueAsString(root));
+
+            JsonNode print = root.path("print");
+            PrinterStatusUpdate update;
+            if (!print.path("gcode_state").isMissingNode()) {
+                // Full status snapshot — replace cache entirely
+                update = parseBambuPayload(printerId, root);
+            } else {
+                // Partial message — merge temps/progress into existing snapshot if present
+                PrinterStatusUpdate current = statusCache.get(printerId);
+                if (current == null) return; // nothing to merge into yet
+                boolean hasData = !print.path("nozzle_temper").isMissingNode()
+                        || !print.path("bed_temper").isMissingNode()
+                        || !print.path("mc_percent").isMissingNode();
+                if (!hasData) return;
+                update = new PrinterStatusUpdate(
+                        printerId,
+                        current.state(),
+                        print.path("mc_percent").isMissingNode()     ? current.progressPercent()  : print.path("mc_percent").asDouble(),
+                        current.currentFile(),
+                        print.path("bed_temper").isMissingNode()      ? current.bedTempActual()    : print.path("bed_temper").asInt(),
+                        current.bedTempTarget(),
+                        print.path("nozzle_temper").isMissingNode()   ? current.nozzleTempActual() : print.path("nozzle_temper").asInt(),
+                        current.nozzleTempTarget(),
+                        current.remainingMinutes(),
+                        Instant.now(),
+                        true
+                );
+            }
             statusCache.put(printerId, update);
             log.debug("MQTT update from {} — state={}, progress={}%, nozzle={}°C",
                     serial, update.state(), update.progressPercent(), update.nozzleTempActual());
@@ -188,14 +232,15 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         return new PrinterStatusUpdate(
                 printerId,
                 state,
-                print.path("mc_percent").asDouble(0),      // progress %
-                print.path("subtask_name").asText(null),   // file name
+                print.path("mc_percent").asDouble(0),
+                print.path("subtask_name").asText(null),
                 print.path("bed_temper").asInt(0),
                 print.path("bed_target_temper").asInt(0),
                 print.path("nozzle_temper").asInt(0),
                 print.path("nozzle_target_temper").asInt(0),
-                print.path("mc_remaining_time").asInt(-1), // minutes remaining
-                Instant.now()
+                print.path("mc_remaining_time").asInt(-1),
+                Instant.now(),
+                true  // message arrived → MQTT is connected
         );
     }
 
@@ -239,22 +284,61 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
     }
 
     /**
-     * Returns an SSL socket factory that accepts any certificate.
-     * Used for Bambu printers which ship with self-signed TLS certs.
-     * Phase 3: replace with a proper trust store.
+     * Returns an SSL socket factory that:
+     * 1. Trusts any certificate (Bambu ships self-signed certs)
+     * 2. Disables hostname verification (Bambu cert has no SAN for the LAN IP)
+     * Phase 3: replace with a proper trust store and cert pinning.
      */
-    private javax.net.ssl.SSLSocketFactory trustAllSocketFactory() {
+    private SSLSocketFactory trustAllSocketFactory() {
         try {
             TrustManager[] trustAll = new TrustManager[]{
-                new X509TrustManager() {
+                new X509ExtendedTrustManager() {
                     public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
                     public void checkClientTrusted(X509Certificate[] c, String a) {}
                     public void checkServerTrusted(X509Certificate[] c, String a) {}
+                    public void checkClientTrusted(X509Certificate[] c, String a, Socket s) {}
+                    public void checkServerTrusted(X509Certificate[] c, String a, Socket s) {}
+                    public void checkClientTrusted(X509Certificate[] c, String a, SSLEngine e) {}
+                    public void checkServerTrusted(X509Certificate[] c, String a, SSLEngine e) {}
                 }
             };
             SSLContext ctx = SSLContext.getInstance("TLS");
             ctx.init(null, trustAll, new java.security.SecureRandom());
-            return ctx.getSocketFactory();
+            SSLSocketFactory base = ctx.getSocketFactory();
+
+            // Wrap factory so every socket has hostname verification disabled.
+            // Java does hostname verification separately from cert trust —
+            // setEndpointIdentificationAlgorithm(null) disables it per-socket.
+            return new SSLSocketFactory() {
+                private SSLSocket noHostnameVerification(Socket s) {
+                    SSLParameters params = ((SSLSocket) s).getSSLParameters();
+                    params.setEndpointIdentificationAlgorithm(null);
+                    ((SSLSocket) s).setSSLParameters(params);
+                    return (SSLSocket) s;
+                }
+                public String[] getDefaultCipherSuites() { return base.getDefaultCipherSuites(); }
+                public String[] getSupportedCipherSuites() { return base.getSupportedCipherSuites(); }
+                // Paho calls the no-arg form to get an unconnected socket, then connects it.
+                // Must override here; the default SSLSocketFactory throws "Unconnected sockets not implemented".
+                public Socket createSocket() throws IOException {
+                    return noHostnameVerification(base.createSocket());
+                }
+                public Socket createSocket(Socket s, String h, int port, boolean ac) throws IOException {
+                    return noHostnameVerification(base.createSocket(s, h, port, ac));
+                }
+                public Socket createSocket(String h, int port) throws IOException {
+                    return noHostnameVerification(base.createSocket(h, port));
+                }
+                public Socket createSocket(String h, int port, InetAddress l, int lp) throws IOException {
+                    return noHostnameVerification(base.createSocket(h, port, l, lp));
+                }
+                public Socket createSocket(InetAddress h, int port) throws IOException {
+                    return noHostnameVerification(base.createSocket(h, port));
+                }
+                public Socket createSocket(InetAddress h, int port, InetAddress l, int lp) throws IOException {
+                    return noHostnameVerification(base.createSocket(h, port, l, lp));
+                }
+            };
         } catch (Exception e) {
             throw new RuntimeException("Failed to create trust-all SSL factory", e);
         }
@@ -267,7 +351,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
     private PrinterStatusUpdate offlineStatus(UUID printerId) {
         return new PrinterStatusUpdate(
                 printerId, PrinterState.OFFLINE,
-                0, null, 0, 0, 0, 0, -1, Instant.now()
+                0, null, 0, 0, 0, 0, -1, Instant.now(), false
         );
     }
 }

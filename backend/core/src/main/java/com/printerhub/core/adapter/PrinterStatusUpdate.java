@@ -24,5 +24,6 @@ public record PrinterStatusUpdate(
         int nozzleTempActual,
         int nozzleTempTarget,
         int remainingMinutes,      // -1 when unknown
-        Instant timestamp
+        Instant timestamp,
+        boolean mqttConnected      // true when the MQTT socket is open
 ) {}

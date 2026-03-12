@@ -30,4 +30,5 @@ export interface PrinterStatusUpdate {
   nozzleTempTarget: number;
   remainingMinutes: number;
   timestamp: string;
+  mqttConnected: boolean;
 }

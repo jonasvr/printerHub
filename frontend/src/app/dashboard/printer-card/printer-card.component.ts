@@ -50,7 +50,26 @@ export class PrinterCardComponent {
   }
 
   get remainingLabel(): string {
-    const mins = this.status?.remainingMinutes ?? -1;
+    return this.formatMinutes(this.status?.remainingMinutes ?? -1);
+  }
+
+  get totalLabel(): string {
+    const remaining = this.status?.remainingMinutes ?? -1;
+    const progress = this.status?.progressPercent ?? 0;
+    if (remaining < 0 || progress <= 0 || progress >= 100) return '—';
+    const total = Math.round(remaining * 100 / (100 - progress));
+    return this.formatMinutes(total);
+  }
+
+  get elapsedLabel(): string {
+    const remaining = this.status?.remainingMinutes ?? -1;
+    const progress = this.status?.progressPercent ?? 0;
+    if (remaining < 0 || progress <= 0 || progress >= 100) return '—';
+    const elapsed = Math.round(remaining * progress / (100 - progress));
+    return this.formatMinutes(elapsed);
+  }
+
+  private formatMinutes(mins: number): string {
     if (mins < 0) return '—';
     if (mins < 60) return `${mins}m`;
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
