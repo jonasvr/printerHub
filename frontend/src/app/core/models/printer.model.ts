@@ -25,6 +25,27 @@ export interface MqttLogEntry {
   payload: string;   // raw JSON string
 }
 
+/** Mirrors the Java HmsAlert record */
+export interface HmsAlert {
+  attr: number;
+  code: number;
+}
+
+/** Mirrors the Java AmsTray record */
+export interface AmsTray {
+  id: string;
+  filamentType: string;
+  subBrand: string | null;
+  colorHex: string;      // 6-char RGB e.g. "56B7E6" — ready for CSS
+  isActive: boolean;
+}
+
+/** Mirrors the Java AmsStatus record */
+export interface AmsStatus {
+  unitId: string;
+  trays: AmsTray[];
+}
+
 /** Mirrors the Java PrinterStatusUpdate record — pushed over WebSocket */
 export interface PrinterStatusUpdate {
   printerId: string;
@@ -39,4 +60,10 @@ export interface PrinterStatusUpdate {
   timestamp: string;
   mqttConnected: boolean;
   connectionError?: string | null;
+  chamberTempActual: number;
+  layerCurrent: number;
+  layerTotal: number;
+  speedPercent: number;
+  hmsAlerts: HmsAlert[];
+  amsList: AmsStatus[] | null;
 }
