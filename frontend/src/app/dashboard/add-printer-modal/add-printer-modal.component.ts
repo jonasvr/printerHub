@@ -1,8 +1,10 @@
-import { Component, Input, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { PrinterService } from '../../core/services/printer.service';
 import { Printer, PrinterBrand } from '../../core/models/printer.model';
+import { PRINTER_MODELS, CONNECTION_HINTS, PrinterModelOption, ConnectionHint, BrandHints } from '../../core/data/printer-catalogue';
 
 @Component({
   selector: 'ph-add-printer-modal',
@@ -21,6 +23,7 @@ export class AddPrinterModalComponent implements OnInit {
 
   private fb             = inject(FormBuilder);
   private printerService = inject(PrinterService);
+  private destroyRef     = inject(DestroyRef);
 
   saving  = false;
   error: string | null = null;
@@ -30,7 +33,7 @@ export class AddPrinterModalComponent implements OnInit {
   form = this.fb.group({
     name:         ['', Validators.required],
     brand:        ['BAMBU' as PrinterBrand, Validators.required],
-    model:        [''],
+    model:        [PRINTER_MODELS['BAMBU'][0].value],
     serialNumber: [''],
     ipAddress:    [''],
     accessCode:   ['']
@@ -44,6 +47,18 @@ export class AddPrinterModalComponent implements OnInit {
     return this.form.value.brand === 'BAMBU';
   }
 
+  get currentModels(): PrinterModelOption[] {
+    return PRINTER_MODELS[this.form.value.brand as PrinterBrand] ?? [];
+  }
+
+  get connectionHint(): ConnectionHint | null {
+    const brand = this.form.value.brand as PrinterBrand;
+    const model = this.form.value.model as string;
+    const entry: BrandHints | undefined = CONNECTION_HINTS[brand];
+    if (!entry) return null;
+    return entry.models?.[model] ?? entry.default;
+  }
+
   ngOnInit(): void {
     if (this.printer) {
       this.form.patchValue({
@@ -55,6 +70,13 @@ export class AddPrinterModalComponent implements OnInit {
         accessCode:   ''   // never pre-fill credentials
       });
     }
+
+    this.form.controls.brand.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(brand => {
+        const first = PRINTER_MODELS[brand as PrinterBrand]?.[0]?.value ?? '';
+        this.form.controls.model.setValue(first, { emitEvent: false });
+      });
   }
 
   submit(): void {
