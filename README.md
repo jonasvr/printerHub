@@ -189,12 +189,39 @@ public class PrusaAdapter implements PrinterAdapter {
 
     @Override
     public void cancel(UUID printerId) { ... }
+
+    // Optional — override to support the periodic "full status refresh" feature.
+    // Called by PushAllScheduler on a configurable interval (default 60 s).
+    // The default implementation is a no-op, so this is safe to skip.
+    @Override
+    public void requestFullStatus(UUID printerId) {
+        // e.g. trigger an immediate HTTP status poll
+    }
 }
 ```
 
 ### 4. That's it
 
 `AdapterRegistry` auto-discovers all `@Component` beans that implement `PrinterAdapter` via Spring DI. No registration step needed.
+
+---
+
+## Configuration
+
+Key properties in `backend/cloud-service/src/main/resources/application.yml`:
+
+| Property | Default | Description |
+|---|---|---|
+| `printerhub.allowed-origins` | `http://localhost:4200` | Comma-separated list of allowed CORS origins. Set via env var `PRINTERHUB_ALLOWED_ORIGINS` in production. |
+| `printerhub.pushall-interval-seconds` | `60` | How often (in seconds) the backend requests a full status dump from each printer. Adjustable at runtime via the dashboard UI (30–300 s). |
+
+Example production override:
+
+```yaml
+printerhub:
+  allowed-origins: https://app.example.com,https://admin.example.com
+  pushall-interval-seconds: 120
+```
 
 ---
 
