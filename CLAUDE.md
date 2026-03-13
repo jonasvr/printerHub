@@ -19,6 +19,11 @@ After any session where the following change, update README.md to match:
 - No new comments unless logic is genuinely non-obvious
 - No docstrings on getters/setters/simple delegators
 
+## Dashboard card layouts
+The dashboard has 3 card layout views (layout 1 = card grid, layout 2 = compact rows, layout 3 = status hero), all in `dashboard.component.html`.
+When adding, removing, or adjusting any data field displayed on a printer card (e.g. a new temperature, a new status flag, a new action button), check and update **all three layouts** so they stay in sync.
+Helper methods shared by layouts 2 & 3 live on `DashboardComponent` (e.g. `st()`, `stateOf()`, `isPrinting()`, etc.) — add new helpers there, not inline in the template.
+
 ## What NOT to do
 - Do not auto-commit
 - Do not add error handling for impossible cases

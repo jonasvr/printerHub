@@ -27,6 +27,45 @@
           }
         </select>
       </div>
+
+      <!-- Card layout switcher -->
+      <div class="flex items-center gap-0.5 bg-gray-800 rounded-lg p-1" title="Card layout">
+        <!-- Layout 1: Card grid -->
+        <button class="p-1.5 rounded-md transition-colors"
+                [class.bg-gray-700]="layout === 1"
+                [class.text-white]="layout === 1"
+                [class.text-gray-500]="layout !== 1"
+                (click)="setLayout(1)"
+                title="Card grid">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+          </svg>
+        </button>
+        <!-- Layout 2: Compact rows -->
+        <button class="p-1.5 rounded-md transition-colors"
+                [class.bg-gray-700]="layout === 2"
+                [class.text-white]="layout === 2"
+                [class.text-gray-500]="layout !== 2"
+                (click)="setLayout(2)"
+                title="Compact rows">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+          </svg>
+        </button>
+        <!-- Layout 3: Status hero -->
+        <button class="p-1.5 rounded-md transition-colors"
+                [class.bg-gray-700]="layout === 3"
+                [class.text-white]="layout === 3"
+                [class.text-gray-500]="layout !== 3"
+                (click)="setLayout(3)"
+                title="Status hero">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" stroke-linecap="round" />
+            <path stroke-linecap="round" d="M12 7v5l3 3" />
+          </svg>
+        </button>
+      </div>
+
       <button class="btn-primary" (click)="showModal = true">+ Add Printer</button>
     </div>
   </header>
@@ -43,8 +82,8 @@
     </div>
   }
 
-  <!-- Printer grid -->
-  @if (printers.length > 0) {
+  <!-- ── Layout 1: Card grid ───────────────────────────────────────────────── -->
+  @if (printers.length > 0 && layout === 1) {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
       @for (printer of printers; track printer.id) {
         <ph-printer-card
@@ -59,8 +98,255 @@
       }
     </div>
   }
+
+  <!-- ── Layout 2: Compact rows ────────────────────────────────────────────── -->
+  @if (printers.length > 0 && layout === 2) {
+    <div class="flex flex-col gap-2 max-w-[1200px] mx-auto w-full">
+      @for (p of printers; track p.id) {
+        <div class="bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-600 transition-colors flex items-center gap-4 px-4 py-3 min-w-0">
+
+          <!-- State strip -->
+          <div class="w-1 self-stretch rounded-full shrink-0" [ngClass]="stateBg(st(p.id), p)"></div>
+
+          <!-- Name + model -->
+          <div class="w-40 shrink-0 min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <p class="text-sm font-semibold text-white truncate">{{ p.name }}</p>
+              @if (hasAlerts(st(p.id))) {
+                <button class="shrink-0 bg-amber-900/50 border border-amber-700/50 text-amber-300 text-xs rounded px-1.5 leading-5"
+                        (click)="hmsModalPrinterId = p.id">
+                  ⚠ {{ alertCount(st(p.id)) }}
+                </button>
+              }
+            </div>
+            <p class="text-xs text-gray-500 truncate">{{ p.brand }} {{ p.model }}</p>
+          </div>
+
+          <!-- Progress / status (flex-1) -->
+          <div class="flex-1 min-w-0">
+            @if (isPrinting(st(p.id), p) || isPaused(st(p.id), p)) {
+              <div class="flex justify-between text-xs text-gray-400 mb-1">
+                <span class="truncate">{{ st(p.id)?.currentFile ?? '—' }}</span>
+                <span class="shrink-0 ml-2 font-mono">{{ st(p.id)?.progressPercent ?? 0 }}%</span>
+              </div>
+              <div class="w-full bg-gray-800 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full transition-all"
+                     [class.bg-green-500]="isPrinting(st(p.id), p)"
+                     [class.bg-amber-400]="isPaused(st(p.id), p)"
+                     [style.width.%]="st(p.id)?.progressPercent ?? 0"></div>
+              </div>
+              <p class="text-xs text-gray-600 mt-0.5">
+                L{{ st(p.id)?.layerCurrent }}/{{ st(p.id)?.layerTotal }}
+                · {{ elapsedLabel(st(p.id)) }} elapsed
+                · {{ remainingLabel(st(p.id)) }} left
+                @if (st(p.id)?.speedPercent) { · {{ st(p.id)?.speedPercent }}% speed }
+              </p>
+            } @else if (st(p.id) && !st(p.id)?.mqttConnected) {
+              <p class="text-xs text-amber-400">{{ st(p.id)?.connectionError ?? 'MQTT disconnected' }}</p>
+            } @else {
+              <p class="text-xs text-gray-600 italic">Ready to print</p>
+            }
+          </div>
+
+          <!-- Temps -->
+          <div class="hidden lg:flex gap-4 shrink-0 text-xs">
+            <div>
+              <span class="text-gray-600">Bed </span>
+              <span class="text-white font-mono">{{ st(p.id)?.bedTempActual ?? '—' }}°</span>
+            </div>
+            <div>
+              <span class="text-gray-600">Nozzle </span>
+              <span class="text-white font-mono">{{ st(p.id)?.nozzleTempActual ?? '—' }}°</span>
+            </div>
+            @if (st(p.id)?.chamberTempActual) {
+              <div>
+                <span class="text-gray-600">Chamber </span>
+                <span class="text-white font-mono">{{ st(p.id)?.chamberTempActual }}°</span>
+              </div>
+            }
+          </div>
+
+          <!-- AMS dots -->
+          @if (amsUnits(st(p.id)).length > 0) {
+            <div class="hidden md:flex gap-1 shrink-0">
+              @for (unit of amsUnits(st(p.id)); track unit.unitId) {
+                @for (tray of unit.trays; track tray.id) {
+                  <span class="w-3 h-3 rounded-full shrink-0 border border-black/20"
+                        [class.ring-1]="tray.isActive"
+                        [class.ring-white]="tray.isActive"
+                        [style.background-color]="'#' + tray.colorHex"
+                        [title]="tray.filamentType + (tray.subBrand ? ' — ' + tray.subBrand : '')"></span>
+                }
+              }
+            </div>
+          }
+
+          <!-- State badge + controls + edit -->
+          <div class="shrink-0 flex items-center gap-2">
+            <span class="text-xs font-medium px-2 py-1 rounded-md"
+                  [ngClass]="stateColorText(st(p.id), p)"
+                  [class.bg-green-950]="isPrinting(st(p.id), p)"
+                  [class.bg-amber-950]="isPaused(st(p.id), p)"
+                  [class.bg-gray-800]="!isPrinting(st(p.id), p) && !isPaused(st(p.id), p)">
+              {{ stateOf(st(p.id), p) }}
+            </span>
+            @if (isPrinting(st(p.id), p)) {
+              <button class="btn-ghost text-xs py-1 px-2" (click)="onPause(p.id)">Pause</button>
+            }
+            @if (isPaused(st(p.id), p)) {
+              <button class="btn-primary text-xs py-1 px-2" (click)="onResume(p.id)">Resume</button>
+            }
+            <button class="text-gray-600 hover:text-gray-300 transition-colors p-1" (click)="openLogs(p)" title="View MQTT logs">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10" />
+              </svg>
+            </button>
+            <button class="text-gray-600 hover:text-gray-300 transition-colors p-1" (click)="openEdit(p)" title="Edit printer">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0111 16.5H9v-2a2 2 0 01.586-1.414z" />
+              </svg>
+            </button>
+          </div>
+
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Layout 3: Status hero ─────────────────────────────────────────────── -->
+  @if (printers.length > 0 && layout === 3) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      @for (p of printers; track p.id) {
+        <div class="bg-gray-900 rounded-2xl border border-gray-800 hover:border-gray-600 transition-colors p-5 flex flex-col items-center gap-3">
+
+          <!-- MQTT disconnect banner -->
+          @if (st(p.id) && !st(p.id)?.mqttConnected) {
+            <div class="w-full text-xs text-amber-400 bg-amber-950/40 border border-amber-800/50 rounded-lg px-3 py-2 text-center">
+              {{ st(p.id)?.connectionError ?? 'MQTT disconnected' }}
+            </div>
+          }
+
+          <!-- HMS alert banner -->
+          @if (hasAlerts(st(p.id))) {
+            <button class="w-full flex items-center justify-center gap-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-800/50 rounded-lg px-3 py-2 hover:bg-amber-950/60 transition-colors"
+                    (click)="hmsModalPrinterId = p.id">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              {{ alertCount(st(p.id)) }} printer alert{{ alertCount(st(p.id)) !== 1 ? 's' : '' }}
+            </button>
+          }
+
+          <!-- Circular progress ring -->
+          <div class="relative w-28 h-28">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 96 96">
+              <circle cx="48" cy="48" r="40" stroke="#1f2937" stroke-width="8" fill="none" />
+              <circle cx="48" cy="48" r="40"
+                      fill="none" stroke-width="8" stroke-linecap="round"
+                      stroke-dasharray="251.3"
+                      [attr.stroke]="ringStroke(st(p.id), p)"
+                      [style.stroke-dashoffset]="ringOffset(st(p.id))" />
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+              @if (isPrinting(st(p.id), p) || isPaused(st(p.id), p)) {
+                <span class="text-2xl font-bold text-white leading-none">{{ st(p.id)?.progressPercent ?? 0 }}%</span>
+                <span class="text-[10px] mt-0.5 font-medium" [ngClass]="stateColorText(st(p.id), p)">
+                  {{ stateOf(st(p.id), p) }}
+                </span>
+              } @else {
+                <span class="text-sm font-semibold leading-none" [ngClass]="stateColorText(st(p.id), p)">
+                  {{ stateOf(st(p.id), p) }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Name + model + actions -->
+          <div class="text-center w-full">
+            <div class="flex items-center justify-center gap-2">
+              <h3 class="text-white font-semibold text-sm">{{ p.name }}</h3>
+              <button class="text-gray-600 hover:text-gray-300 transition-colors" (click)="openLogs(p)" title="View MQTT logs">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10" />
+                </svg>
+              </button>
+              <button class="text-gray-600 hover:text-gray-300 transition-colors" (click)="openEdit(p)" title="Edit printer">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2 2 0 112.828 2.828L11.828 15.828A2 2 0 0111 16.5H9v-2a2 2 0 01.586-1.414z" />
+                </svg>
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mt-0.5">{{ p.brand }} · {{ p.model }}</p>
+          </div>
+
+          <!-- File + time -->
+          @if (st(p.id)?.currentFile) {
+            <p class="text-xs text-gray-400 truncate max-w-full w-full text-center">{{ st(p.id)?.currentFile }}</p>
+          }
+          @if (isPrinting(st(p.id), p) || isPaused(st(p.id), p)) {
+            <p class="text-xs text-gray-600 text-center">
+              {{ elapsedLabel(st(p.id)) }} elapsed · {{ remainingLabel(st(p.id)) }} left
+              @if (st(p.id)?.speedPercent) { · {{ st(p.id)?.speedPercent }}% speed }
+            </p>
+          }
+
+          <!-- Temp pills -->
+          <div class="flex gap-2 flex-wrap justify-center w-full">
+            <div class="bg-gray-800 rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center gap-0.5">
+              <span class="text-gray-600 text-[10px]">BED</span>
+              <span class="text-white font-mono">{{ st(p.id)?.bedTempActual ?? '—' }}°C</span>
+            </div>
+            <div class="bg-gray-800 rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center gap-0.5">
+              <span class="text-gray-600 text-[10px]">NOZZLE</span>
+              <span class="text-white font-mono">{{ st(p.id)?.nozzleTempActual ?? '—' }}°C</span>
+            </div>
+            @if (st(p.id)?.chamberTempActual) {
+              <div class="bg-gray-800 rounded-lg px-2.5 py-1.5 text-xs flex flex-col items-center gap-0.5">
+                <span class="text-gray-600 text-[10px]">CHAMBER</span>
+                <span class="text-white font-mono">{{ st(p.id)?.chamberTempActual }}°C</span>
+              </div>
+            }
+          </div>
+
+          <!-- AMS swatches -->
+          @if (amsUnits(st(p.id)).length > 0) {
+            <div class="flex flex-col gap-1 w-full">
+              @for (unit of amsUnits(st(p.id)); track unit.unitId) {
+                <div class="flex gap-1 justify-center flex-wrap">
+                  @for (tray of unit.trays; track tray.id) {
+                    <div class="flex items-center gap-1 rounded px-1.5 py-1 text-xs"
+                         [class.ring-1]="tray.isActive"
+                         [class.ring-white]="tray.isActive"
+                         [style.background-color]="'#' + tray.colorHex + '33'">
+                      <span class="w-2.5 h-2.5 rounded-full shrink-0" [style.background-color]="'#' + tray.colorHex"></span>
+                      <span class="text-gray-200">{{ tray.subBrand ?? tray.filamentType }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Controls -->
+          <div class="flex gap-2 w-full mt-auto pt-1">
+            @if (isPrinting(st(p.id), p)) {
+              <button class="btn-ghost text-xs flex-1 py-1" (click)="onPause(p.id)">Pause</button>
+              <button class="btn-ghost text-xs text-red-400 hover:text-red-300 px-3 py-1" (click)="onCancel(p.id)">Cancel</button>
+            }
+            @if (isPaused(st(p.id), p)) {
+              <button class="btn-primary text-xs flex-1 py-1" (click)="onResume(p.id)">Resume</button>
+              <button class="btn-ghost text-xs text-red-400 hover:text-red-300 px-3 py-1" (click)="onCancel(p.id)">Cancel</button>
+            }
+          </div>
+
+        </div>
+      }
+    </div>
+  }
+
 </div>
 
+<!-- Modals -->
 @if (showModal || editingPrinter) {
   <ph-add-printer-modal
     [printer]="editingPrinter"
@@ -73,4 +359,42 @@
   <ph-mqtt-logs-modal
     [printer]="loggingPrinter"
     (closed)="closeLogs()" />
+}
+
+<!-- HMS alert modal (layouts 2 & 3) -->
+@if (hmsModalPrinterId) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="hmsModalPrinterId = null">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="relative bg-gray-900 border border-gray-700 rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 text-amber-300">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <span class="font-semibold text-sm">Printer Alerts</span>
+        </div>
+        <button class="text-gray-500 hover:text-gray-300 transition-colors" (click)="hmsModalPrinterId = null">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-2">
+        @for (alert of alerts(st(hmsModalPrinterId)); track $index) {
+          <div class="bg-gray-800 rounded-lg px-3 py-2.5 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium" [ngClass]="hmsSeverityClass(alert.attr)">{{ hmsSeverity(alert.attr) }}</span>
+              <span class="text-xs text-gray-500">Alert {{ $index + 1 }} of {{ alertCount(st(hmsModalPrinterId)) }}</span>
+            </div>
+            <div class="font-mono text-xs text-gray-300 space-y-0.5">
+              <p><span class="text-gray-500">attr </span>{{ hmsHex(alert.attr) }}</p>
+              <p><span class="text-gray-500">code </span>{{ hmsHex(alert.code) }}</p>
+            </div>
+          </div>
+        }
+      </div>
+      <p class="text-xs text-gray-600">Look up error codes in the Bambu Lab Wiki.</p>
+    </div>
+  </div>
 }
