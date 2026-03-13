@@ -2,7 +2,7 @@
 <div class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4" (click)="closed.emit()">
 
   <!-- Panel — stop click propagation so clicking inside doesn't close -->
-  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md p-6 z-50" (click)="$event.stopPropagation()">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md p-6 z-50 max-h-[calc(100vh-2rem)] overflow-y-auto" (click)="$event.stopPropagation()">
 
     <h2 class="text-white font-semibold text-lg mb-5">{{ title }}</h2>
 
@@ -27,8 +27,11 @@
         </div>
         <div>
           <label class="block text-xs text-gray-400 mb-1">Model</label>
-          <input formControlName="model" type="text" placeholder="e.g. P1S"
-                 class="input w-full" autocomplete="off" />
+          <select formControlName="model" class="input w-full">
+            @for (m of currentModels; track m.value) {
+              <option [value]="m.value">{{ m.label }}</option>
+            }
+          </select>
         </div>
       </div>
 
@@ -52,6 +55,21 @@
             <input formControlName="accessCode" type="password" placeholder="8 digits"
                    class="input w-full font-mono" autocomplete="off" />
           </div>
+        </div>
+      }
+
+      <!-- Connection instructions -->
+      @if (connectionHint) {
+        <div class="rounded-lg bg-indigo-950/60 border border-indigo-800/50 px-4 py-3 text-xs text-indigo-200">
+          <p class="font-semibold text-indigo-300 mb-2">How to connect</p>
+          <ol class="list-decimal list-inside space-y-1 text-indigo-200/90">
+            @for (step of connectionHint.steps; track $index) {
+              <li>{{ step }}</li>
+            }
+          </ol>
+          @if (connectionHint.note) {
+            <p class="mt-2 text-indigo-300/70 italic">{{ connectionHint.note }}</p>
+          }
         </div>
       }
 
