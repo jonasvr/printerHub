@@ -2,6 +2,9 @@ package com.printerhub.adapter.bambu;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.printerhub.core.adapter.AmsStatus;
+import com.printerhub.core.adapter.AmsTray;
+import com.printerhub.core.adapter.HmsAlert;
 import com.printerhub.core.adapter.MqttLogEntry;
 import com.printerhub.core.adapter.MqttMessageEvent;
 import com.printerhub.core.adapter.PrinterAdapter;
@@ -120,7 +123,8 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
             // Also clears any connectionError from a previous failed attempt.
             statusCache.put(printer.getId(), new PrinterStatusUpdate(
                     printer.getId(), PrinterState.IDLE,
-                    0, null, 0, 0, 0, 0, -1, Instant.now(), true, null
+                    0, null, 0, 0, 0, 0, -1, Instant.now(), true, null,
+                    0, 0, 0, 0, List.of(), null
             ));
             log.info("Connected to Bambu printer {} ({})", printer.getName(), printer.getSerialNumber());
             // Request full status dump — response arrives via messageArrived() within ~1 s
@@ -167,7 +171,9 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                 cached.printerId(), cached.state(), cached.progressPercent(),
                 cached.currentFile(), cached.bedTempActual(), cached.bedTempTarget(),
                 cached.nozzleTempActual(), cached.nozzleTempTarget(),
-                cached.remainingMinutes(), cached.timestamp(), connected, cached.connectionError()
+                cached.remainingMinutes(), cached.timestamp(), connected, cached.connectionError(),
+                cached.chamberTempActual(), cached.layerCurrent(), cached.layerTotal(),
+                cached.speedPercent(), cached.hmsAlerts(), cached.amsList()
         );
     }
 
@@ -240,21 +246,36 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                 if (current == null) return; // nothing to merge into yet
                 boolean hasData = !print.path("nozzle_temper").isMissingNode()
                         || !print.path("bed_temper").isMissingNode()
-                        || !print.path("mc_percent").isMissingNode();
+                        || !print.path("mc_percent").isMissingNode()
+                        || !print.path("subtask_name").isMissingNode()
+                        || !print.path("mc_remaining_time").isMissingNode()
+                        || !print.path("chamber_temper").isMissingNode()
+                        || !print.path("layer_num").isMissingNode()
+                        || !print.path("spd_mag").isMissingNode()
+                        || !print.path("hms").isMissingNode();
                 if (!hasData) return;
+
+                String partialSubtask = print.path("subtask_name").isMissingNode()
+                        ? null : print.path("subtask_name").asText("").trim();
                 update = new PrinterStatusUpdate(
                         printerId,
                         current.state(),
-                        print.path("mc_percent").isMissingNode()     ? current.progressPercent()  : print.path("mc_percent").asDouble(),
-                        current.currentFile(),
-                        print.path("bed_temper").isMissingNode()      ? current.bedTempActual()    : print.path("bed_temper").asInt(),
-                        current.bedTempTarget(),
-                        print.path("nozzle_temper").isMissingNode()   ? current.nozzleTempActual() : print.path("nozzle_temper").asInt(),
-                        current.nozzleTempTarget(),
-                        current.remainingMinutes(),
+                        print.path("mc_percent").isMissingNode()          ? current.progressPercent()  : print.path("mc_percent").asDouble(),
+                        (partialSubtask == null || partialSubtask.isBlank()) ? current.currentFile()     : partialSubtask,
+                        print.path("bed_temper").isMissingNode()           ? current.bedTempActual()    : print.path("bed_temper").asInt(),
+                        print.path("bed_target_temper").isMissingNode()    ? current.bedTempTarget()    : print.path("bed_target_temper").asInt(),
+                        print.path("nozzle_temper").isMissingNode()        ? current.nozzleTempActual() : print.path("nozzle_temper").asInt(),
+                        print.path("nozzle_target_temper").isMissingNode() ? current.nozzleTempTarget() : print.path("nozzle_target_temper").asInt(),
+                        print.path("mc_remaining_time").isMissingNode()    ? current.remainingMinutes() : print.path("mc_remaining_time").asInt(-1),
                         Instant.now(),
                         true,
-                        null
+                        null,
+                        print.path("chamber_temper").isMissingNode() ? current.chamberTempActual() : print.path("chamber_temper").asInt(0),
+                        print.path("layer_num").isMissingNode()       ? current.layerCurrent()      : print.path("layer_num").asInt(0),
+                        print.path("total_layer_num").isMissingNode() ? current.layerTotal()        : print.path("total_layer_num").asInt(0),
+                        print.path("spd_mag").isMissingNode()         ? current.speedPercent()      : print.path("spd_mag").asInt(0),
+                        print.path("hms").isMissingNode()             ? current.hmsAlerts()         : parseHms(print),
+                        current.amsList()
                 );
             }
             statusCache.put(printerId, update);
@@ -294,11 +315,12 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         String gcodeState = print.path("gcode_state").asText("IDLE");
         PrinterState state = mapBambuState(gcodeState);
 
+        String subtaskName = print.path("subtask_name").asText("").trim();
         return new PrinterStatusUpdate(
                 printerId,
                 state,
                 print.path("mc_percent").asDouble(0),
-                print.path("subtask_name").asText(null),
+                subtaskName.isBlank() ? null : subtaskName,
                 print.path("bed_temper").asInt(0),
                 print.path("bed_target_temper").asInt(0),
                 print.path("nozzle_temper").asInt(0),
@@ -306,7 +328,13 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                 print.path("mc_remaining_time").asInt(-1),
                 Instant.now(),
                 true,  // message arrived → MQTT is connected
-                null   // no error
+                null,  // no error
+                print.path("chamber_temper").asInt(0),
+                print.path("layer_num").asInt(0),
+                print.path("total_layer_num").asInt(0),
+                print.path("spd_mag").asInt(0),
+                parseHms(print),
+                parseAms(print)
         );
     }
 
@@ -410,10 +438,59 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         }
     }
 
+    private List<HmsAlert> parseHms(JsonNode print) {
+        JsonNode hms = print.path("hms");
+        if (!hms.isArray() || hms.isEmpty()) return List.of();
+        List<HmsAlert> result = new ArrayList<>();
+        for (JsonNode entry : hms) {
+            result.add(new HmsAlert(entry.path("attr").asLong(0), entry.path("code").asLong(0)));
+        }
+        return result;
+    }
+
+    private List<AmsStatus> parseAms(JsonNode print) {
+        JsonNode amsRoot = print.path("ams");
+        if (amsRoot.isMissingNode()) return null;
+
+        JsonNode amsArray = amsRoot.path("ams");
+        if (!amsArray.isArray() || amsArray.isEmpty()) return null;
+
+        // tray_now is a string index like "1" that matches each tray's "id" field
+        String trayNow = amsRoot.path("tray_now").asText("");
+
+        List<AmsStatus> result = new ArrayList<>();
+        for (JsonNode unit : amsArray) {
+            String unitId = unit.path("id").asText("0");
+            List<AmsTray> trays = new ArrayList<>();
+
+            for (JsonNode tray : unit.path("tray")) {
+                String type = tray.path("tray_type").asText("").trim();
+                if (type.isBlank()) continue; // empty slot — skip
+
+                String trayId = tray.path("id").asText("");
+                String rawColor = tray.path("tray_color").asText("000000FF");
+                // Bambu colors are 8-char RGBA hex e.g. "56B7E6FF" — strip alpha for CSS
+                String colorHex = rawColor.length() >= 6 ? rawColor.substring(0, 6) : "000000";
+                String subBrand = tray.path("tray_sub_brands").asText("").trim();
+
+                trays.add(new AmsTray(
+                        trayId,
+                        type,
+                        subBrand.isBlank() ? null : subBrand,
+                        colorHex,
+                        trayId.equals(trayNow)
+                ));
+            }
+            result.add(new AmsStatus(unitId, trays));
+        }
+        return result.isEmpty() ? null : result;
+    }
+
     private PrinterStatusUpdate offlineStatus(UUID printerId, String error) {
         return new PrinterStatusUpdate(
                 printerId, PrinterState.OFFLINE,
-                0, null, 0, 0, 0, 0, -1, Instant.now(), false, error
+                0, null, 0, 0, 0, 0, -1, Instant.now(), false, error,
+                0, 0, 0, 0, List.of(), null
         );
     }
 

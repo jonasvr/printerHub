@@ -3,6 +3,7 @@ package com.printerhub.core.adapter;
 import com.printerhub.core.entity.PrinterState;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,5 +27,11 @@ public record PrinterStatusUpdate(
         int remainingMinutes,      // -1 when unknown
         Instant timestamp,
         boolean mqttConnected,     // true when the MQTT socket is open
-        String connectionError     // null = connected; non-null = human-readable failure reason
+        String connectionError,    // null = connected; non-null = human-readable failure reason
+        int chamberTempActual,     // 0 = absent or unknown
+        int layerCurrent,          // 0 = not printing
+        int layerTotal,            // 0 = not printing
+        int speedPercent,          // spd_mag from Bambu; 0 = unknown
+        List<HmsAlert> hmsAlerts,  // empty = no alerts; null treated as no alerts
+        List<AmsStatus> amsList    // null = no AMS hardware present
 ) {}
