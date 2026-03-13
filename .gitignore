@@ -13,6 +13,10 @@ hs_err_pid*
 backend/*/target/
 HELP.md
 
+# ── Paho MQTT persistence (created at runtime beside the running JAR) ──────────
+backend/**/*.msg
+backend/**/printerhub-*-ssl*/
+
 # ── Node / Angular ─────────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/

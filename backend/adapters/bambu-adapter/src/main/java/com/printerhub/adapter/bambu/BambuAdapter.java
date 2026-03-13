@@ -83,6 +83,11 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
 
     @Override
     public void connect(Printer printer) {
+        // Disconnect any existing client for this printer before creating a new one.
+        // Without this, a second connect() call (e.g. from the retry scheduler) would
+        // orphan the old MqttClient — still connected on the broker but unreachable.
+        disconnect(printer.getId());
+
         String protocol  = "ssl://";
         String brokerUrl = protocol + printer.getIpAddress() + ":" + props.getMqttPort();
         String clientId  = "printerhub-" + printer.getId();
@@ -118,6 +123,8 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
                     0, null, 0, 0, 0, 0, -1, Instant.now(), true, null
             ));
             log.info("Connected to Bambu printer {} ({})", printer.getName(), printer.getSerialNumber());
+            // Request full status dump — response arrives via messageArrived() within ~1 s
+            publishCommand(printer.getId(), "{\"pushing\":{\"command\":\"pushall\"}}");
 
         } catch (MqttException e) {
             String hint = switch (e.getReasonCode()) {
@@ -177,6 +184,11 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
     @Override
     public void cancel(UUID printerId) {
         publishCommand(printerId, buildCommand("stop"));
+    }
+
+    @Override
+    public void requestFullStatus(UUID printerId) {
+        publishCommand(printerId, "{\"pushing\":{\"command\":\"pushall\"}}");
     }
 
     @Override

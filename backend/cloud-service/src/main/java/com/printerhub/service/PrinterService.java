@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Core business logic for printer management.
@@ -43,25 +44,31 @@ public class PrinterService {
     public void connectAllPrintersOnStartup() {
         List<Printer> active = printerRepository.findAllByActiveTrue();
         log.info("Reconnecting {} printer(s) on startup", active.size());
-        for (Printer printer : active) {
-            try {
-                adapterRegistry.forBrand(printer.getBrand()).connect(printer);
-            } catch (Exception e) {
-                log.error("Failed to reconnect printer {} on startup: {}", printer.getName(), e.getMessage());
-            }
-        }
+        active.stream()
+              .map(printer -> CompletableFuture.runAsync(() -> connectSafely(printer)))
+              .toList()                                        // start all before waiting
+              .forEach(CompletableFuture::join);              // wait so startup log is clean
     }
 
-    @Scheduled(fixedDelay = 30_000)
+    @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
     public void retryDisconnectedPrinters() {
-        printerRepository.findAllByActiveTrue().forEach(printer -> {
-            PrinterStatusUpdate status = adapterRegistry.forBrand(printer.getBrand())
-                                                        .getStatus(printer.getId());
-            if (!status.mqttConnected()) {
+        printerRepository.findAllByActiveTrue().stream()
+            .filter(printer -> !adapterRegistry.forBrand(printer.getBrand())
+                                               .getStatus(printer.getId()).mqttConnected())
+            .map(printer -> CompletableFuture.runAsync(() -> {
                 log.info("Retrying MQTT connection for printer {}", printer.getName());
-                adapterRegistry.forBrand(printer.getBrand()).connect(printer);
-            }
-        });
+                connectSafely(printer);
+            }))
+            .toList()
+            .forEach(CompletableFuture::join);
+    }
+
+    private void connectSafely(Printer printer) {
+        try {
+            adapterRegistry.forBrand(printer.getBrand()).connect(printer);
+        } catch (Exception e) {
+            log.error("Failed to connect printer {}: {}", printer.getName(), e.getMessage());
+        }
     }
 
     // ── Registration ────────────────────────────────────────────────────────

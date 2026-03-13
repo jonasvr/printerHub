@@ -66,4 +66,10 @@ public interface PrinterAdapter {
     default List<MqttLogEntry> getRecentLogs(UUID printerId) {
         return List.of();
     }
+
+    /**
+     * Ask the printer for a full status dump right now (e.g. Bambu pushall).
+     * Default is a no-op — adapters that support on-demand refresh override this.
+     */
+    default void requestFullStatus(UUID printerId) {}
 }

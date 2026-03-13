@@ -24,11 +24,11 @@ export class PrinterCardComponent {
   @Input({ required: true }) printer!: Printer;
   @Input() status: PrinterStatusUpdate | null = null;
 
-  @Output() pause  = new EventEmitter<void>();
+  @Output() pause = new EventEmitter<void>();
   @Output() resume = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
-  @Output() edit   = new EventEmitter<void>();
-  @Output() logs   = new EventEmitter<void>();
+  @Output() edit = new EventEmitter<void>();
+  @Output() logs = new EventEmitter<void>();
 
   get stateLower(): string {
     const s = this.status?.state ?? this.printer.state;
@@ -45,6 +45,10 @@ export class PrinterCardComponent {
 
   get isPaused(): boolean {
     return (this.status?.state ?? this.printer.state) === 'PAUSED';
+  }
+
+   get isIdle(): boolean {
+    return (this.status?.state ?? this.printer.state) === 'IDLE';
   }
 
   get progressPercent(): number {
@@ -78,12 +82,12 @@ export class PrinterCardComponent {
   }
 
   get hasProgressData(): boolean {
-    return (this.status?.progressPercent ?? -1) >= 0;
+    return (this.status?.bedTempTarget ?? -1) >= 0 && (this.status?.nozzleTempTarget ?? -1) >= 0;
   }
 
   get isWarmingUp(): boolean {
     return (this.status?.state ?? this.printer.state) === 'IDLE'
-        && (this.status?.nozzleTempTarget ?? 0) > 0;
+      && (this.status?.nozzleTempTarget ?? 0) > 0;
   }
 
   get bedTemp(): string {

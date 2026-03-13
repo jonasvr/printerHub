@@ -21,6 +21,15 @@ export class MqttLogsModalComponent implements OnInit, OnDestroy {
   private wsSub?: Subscription;
 
   logs: MqttLogEntry[] = [];
+  pushAllOnly = false;
+
+  get visibleLogs(): MqttLogEntry[] {
+    if (!this.pushAllOnly) return this.logs;
+    return this.logs.filter(e => {
+      try { return JSON.parse(e.payload)?.print?.gcode_state !== undefined; }
+      catch { return false; }
+    });
+  }
 
   ngOnInit(): void {
     this.printerService.getLogs(this.printer.id).subscribe(history => {

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Printer, PrinterStatusUpdate } from '../core/models/printer.model';
 import { PrinterService } from '../core/services/printer.service';
 import { WebSocketService } from '../core/services/websocket.service';
+import { SettingsService } from '../core/services/settings.service';
 import { PrinterCardComponent } from './printer-card/printer-card.component';
 import { AddPrinterModalComponent } from './add-printer-modal/add-printer-modal.component';
 import { MqttLogsModalComponent } from './mqtt-logs-modal/mqtt-logs-modal.component';
@@ -19,16 +20,29 @@ import { MqttLogsModalComponent } from './mqtt-logs-modal/mqtt-logs-modal.compon
 })
 export class DashboardComponent implements OnInit {
 
-  private printerService = inject(PrinterService);
-  private wsService = inject(WebSocketService);
+  private printerService  = inject(PrinterService);
+  private wsService       = inject(WebSocketService);
+  private settingsService = inject(SettingsService);
 
   printers: Printer[] = [];
   statusMap = new Map<string, PrinterStatusUpdate>();
   showModal = false;
   editingPrinter?: Printer;
   loggingPrinter?: Printer;
+  pushallInterval = 60;
+
+  readonly intervalOptions = [
+    { label: '30 s',  value: 30  },
+    { label: '1 min', value: 60  },
+    { label: '2 min', value: 120 },
+    { label: '5 min', value: 300 },
+  ];
 
   ngOnInit(): void {
+    this.settingsService.get().subscribe(s => {
+      this.pushallInterval = s.pushallIntervalSeconds;
+    });
+
     this.printerService.getAll().subscribe(printers => {
       this.printers = printers;
       // Subscribe to live updates for each printer
@@ -80,5 +94,10 @@ export class DashboardComponent implements OnInit {
 
   closeLogs(): void {
     this.loggingPrinter = undefined;
+  }
+
+  onPushAllIntervalChange(seconds: number): void {
+    this.pushallInterval = seconds;
+    this.settingsService.setPushAllInterval(seconds).subscribe();
   }
 }
