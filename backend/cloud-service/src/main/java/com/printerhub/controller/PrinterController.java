@@ -16,9 +16,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/printers")
-@CrossOrigin(origins = "http://localhost:4200",
-             methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PATCH,
-                        RequestMethod.DELETE, RequestMethod.OPTIONS})
 @RequiredArgsConstructor
 @Tag(name = "Printers", description = "Register, query and control 3D printers")
 public class PrinterController {

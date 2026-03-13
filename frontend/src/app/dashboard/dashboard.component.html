@@ -4,7 +4,14 @@
   <!-- Header -->
   <header class="mb-8 flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">PrinterHub</h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-bold text-white tracking-tight">PrinterHub</h1>
+        <span
+          class="w-2 h-2 rounded-full"
+          [ngClass]="wsConnected ? 'bg-green-500' : 'bg-red-500'"
+          [title]="wsConnected ? 'Live updates connected' : 'WebSocket disconnected — reconnecting…'">
+        </span>
+      </div>
       <p class="text-sm text-gray-400 mt-0.5">{{ printers.length }} printer{{ printers.length !== 1 ? 's' : '' }} registered</p>
     </div>
     <div class="flex items-center gap-3">

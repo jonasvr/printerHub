@@ -13,9 +13,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PreDestroy;
+
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Core business logic for printer management.
@@ -38,6 +44,12 @@ public class PrinterService {
     private final AdapterRegistry adapterRegistry;
     private final SimpMessagingTemplate messagingTemplate; // sends WebSocket messages
 
+    // Exponential backoff state — keyed by printer ID
+    private static final long MIN_RETRY_MS =   30_000L;
+    private static final long MAX_RETRY_MS =  600_000L;
+    private final Map<UUID, Long> retryDelayMs = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> nextRetryAt  = new ConcurrentHashMap<>();
+
     // ── Startup ─────────────────────────────────────────────────────────────
 
     @EventListener(ApplicationReadyEvent.class)
@@ -52,22 +64,49 @@ public class PrinterService {
 
     @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
     public void retryDisconnectedPrinters() {
+        long now = System.currentTimeMillis();
         printerRepository.findAllByActiveTrue().stream()
             .filter(printer -> !adapterRegistry.forBrand(printer.getBrand())
                                                .getStatus(printer.getId()).mqttConnected())
+            .filter(printer -> now >= nextRetryAt.getOrDefault(printer.getId(), 0L))
             .map(printer -> CompletableFuture.runAsync(() -> {
                 log.info("Retrying MQTT connection for printer {}", printer.getName());
-                connectSafely(printer);
+                boolean ok = connectSafely(printer);
+                if (ok) {
+                    retryDelayMs.remove(printer.getId());
+                    nextRetryAt.remove(printer.getId());
+                } else {
+                    long delay = Math.min(
+                        retryDelayMs.getOrDefault(printer.getId(), MIN_RETRY_MS) * 2,
+                        MAX_RETRY_MS);
+                    retryDelayMs.put(printer.getId(), delay);
+                    nextRetryAt.put(printer.getId(), System.currentTimeMillis() + delay);
+                    log.info("Next retry for printer {} in {} s", printer.getName(), delay / 1000);
+                }
             }))
             .toList()
             .forEach(CompletableFuture::join);
     }
 
-    private void connectSafely(Printer printer) {
+    @PreDestroy
+    public void disconnectAllOnShutdown() {
+        log.info("Shutting down — disconnecting all printers");
+        printerRepository.findAllByActiveTrue().forEach(printer -> {
+            try {
+                adapterRegistry.forBrand(printer.getBrand()).disconnect(printer.getId());
+            } catch (Exception e) {
+                log.warn("Error disconnecting printer {} on shutdown: {}", printer.getName(), e.getMessage());
+            }
+        });
+    }
+
+    private boolean connectSafely(Printer printer) {
         try {
             adapterRegistry.forBrand(printer.getBrand()).connect(printer);
+            return true;
         } catch (Exception e) {
             log.error("Failed to connect printer {}: {}", printer.getName(), e.getMessage());
+            return false;
         }
     }
 
@@ -88,10 +127,14 @@ public class PrinterService {
         existing.setModel(patch.getModel());
         existing.setSerialNumber(patch.getSerialNumber());
         existing.setIpAddress(patch.getIpAddress());
-        existing.setAccessCode(patch.getAccessCode());
+        if (patch.getAccessCode() != null && !patch.getAccessCode().isBlank()) {
+            existing.setAccessCode(patch.getAccessCode());
+        }
         existing.setBrand(patch.getBrand());
         Printer saved = printerRepository.save(existing);
         // Reconnect so the adapter picks up any changed IP/credentials
+        retryDelayMs.remove(printerId);
+        nextRetryAt.remove(printerId);
         adapterRegistry.forBrand(saved.getBrand()).disconnect(printerId);
         adapterRegistry.forBrand(saved.getBrand()).connect(saved);
         return saved;
@@ -123,8 +166,12 @@ public class PrinterService {
         for (Printer printer : active) {
             try {
                 PrinterAdapter adapter = adapterRegistry.forBrand(printer.getBrand());
-                PrinterStatusUpdate status = adapter.getStatus(printer.getId());
+                PrinterStatusUpdate status = CompletableFuture
+                        .supplyAsync(() -> adapter.getStatus(printer.getId()))
+                        .get(500, TimeUnit.MILLISECONDS);
                 messagingTemplate.convertAndSend("/topic/printers/" + printer.getId(), status);
+            } catch (TimeoutException e) {
+                log.warn("Status timeout for printer {}", printer.getName());
             } catch (Exception e) {
                 log.warn("Failed to get status for printer {}: {}", printer.getName(), e.getMessage());
             }

@@ -1,5 +1,7 @@
 package com.printerhub.core.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -42,6 +44,7 @@ public class Printer {
     private String model;          // e.g. "X1C", "MK4"
     private String serialNumber;   // Used to build Bambu MQTT topics
     private String ipAddress;      // Used for LAN-mode HTTP adapters
+    @JsonProperty(access = Access.WRITE_ONLY)   // never serialised in responses; accepted on POST/PATCH
     private String accessCode;     // Bambu LAN access code (move to secrets manager in Phase 3)
 
     @Enumerated(EnumType.STRING)

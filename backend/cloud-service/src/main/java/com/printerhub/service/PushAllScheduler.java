@@ -47,7 +47,13 @@ public class PushAllScheduler {
 
     @PreDestroy
     public void shutdown() {
-        executor.shutdownNow();
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) executor.shutdownNow();
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public long getIntervalSeconds() {

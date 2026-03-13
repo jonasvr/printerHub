@@ -26,6 +26,7 @@ server:
 # ── PrinterHub ────────────────────────────────────────────────────────────
 printerhub:
   pushall-interval-seconds: 60   # How often to request full status from each printer (30–300)
+  allowed-origins: http://localhost:4200  # Comma-separated; override with PRINTERHUB_ALLOWED_ORIGINS env var
 
 # ── Bambu adapter ─────────────────────────────────────────────────────────
 bambu:

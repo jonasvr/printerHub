@@ -30,6 +30,7 @@ export class DashboardComponent implements OnInit {
   editingPrinter?: Printer;
   loggingPrinter?: Printer;
   pushallInterval = 60;
+  wsConnected = false;
 
   readonly intervalOptions = [
     { label: '30 s',  value: 30  },
@@ -39,6 +40,8 @@ export class DashboardComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    this.wsService.connected$.subscribe(c => { this.wsConnected = c; });
+
     this.settingsService.get().subscribe(s => {
       this.pushallInterval = s.pushallIntervalSeconds;
     });

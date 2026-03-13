@@ -1,7 +1,7 @@
 import { Injectable, inject, OnDestroy, NgZone } from '@angular/core';
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { MqttLogEntry, PrinterStatusUpdate } from '../models/printer.model';
 import { environment } from '../../../environments/environment';
 
@@ -16,6 +16,9 @@ export class WebSocketService implements OnDestroy {
   private logSubscriptions = new Map<string, StompSubscription>();
   private logSubjects = new Map<string, Subject<MqttLogEntry>>();
 
+  private connectedSubject = new BehaviorSubject<boolean>(false);
+  readonly connected$ = this.connectedSubject.asObservable();
+
   constructor() {
     this.client = new Client({
       webSocketFactory: () => new SockJS(environment.wsUrl) as WebSocket,
@@ -26,7 +29,12 @@ export class WebSocketService implements OnDestroy {
     });
 
     // Single onConnect handler — re-subscribes all tracked printers on every (re)connect
-    this.client.onConnect = () => this.resubscribeAll();
+    this.client.onConnect = () => {
+      this.connectedSubject.next(true);
+      this.resubscribeAll();
+    };
+    this.client.onDisconnect = () => this.connectedSubject.next(false);
+    this.client.onStompError  = () => this.connectedSubject.next(false);
     this.client.activate();
   }
 
