@@ -309,7 +309,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
      * Parses the Bambu "print" sub-object from the report JSON.
      * The real payload is much larger; this extracts only what the dashboard needs.
      */
-    private PrinterStatusUpdate parseBambuPayload(UUID printerId, JsonNode root) {
+    PrinterStatusUpdate parseBambuPayload(UUID printerId, JsonNode root) {
         JsonNode print = root.path("print");
 
         String gcodeState = print.path("gcode_state").asText("IDLE");
@@ -438,7 +438,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         }
     }
 
-    private List<HmsAlert> parseHms(JsonNode print) {
+    List<HmsAlert> parseHms(JsonNode print) {
         JsonNode hms = print.path("hms");
         if (!hms.isArray() || hms.isEmpty()) return List.of();
         List<HmsAlert> result = new ArrayList<>();
@@ -448,7 +448,7 @@ public class BambuAdapter implements PrinterAdapter, MqttCallback {
         return result;
     }
 
-    private List<AmsStatus> parseAms(JsonNode print) {
+    List<AmsStatus> parseAms(JsonNode print) {
         JsonNode amsRoot = print.path("ams");
         if (amsRoot.isMissingNode()) return null;
 

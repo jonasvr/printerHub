@@ -10,6 +10,7 @@
 .PHONY: help up down logs ps \
         backend backend-build backend-run \
         frontend frontend-install frontend-run \
+        test backend-test frontend-test \
         build clean env-check stop
 
 # ── Colours for help output ────────────────────────────────────────────────
@@ -57,8 +58,13 @@ backend-build: ## Compile all Maven modules (skips tests)
 backend-run: ## Run the Spring Boot app (requires Postgres running)
 	cd $(BACKEND_DIR)/cloud-service && mvn spring-boot:run
 
-backend-test: ## Run backend tests
+backend-test: ## Run backend unit + integration tests (mvn test)
 	cd $(BACKEND_DIR) && mvn test
+
+frontend-test: ## Run frontend tests headless (ng test --no-watch)
+	cd $(FRONTEND_DIR) && npx ng test --no-watch --browsers=ChromeHeadless
+
+test: backend-test frontend-test ## Run all tests (backend + frontend)
 
 backend: backend-build backend-run ## Build then run the backend
 

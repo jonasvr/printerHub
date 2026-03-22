@@ -54,6 +54,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- H2 in-memory database for tests (@WebMvcTest / unit tests) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- OpenAPI / Swagger UI — auto-generates docs from controller annotations -->
         <!-- UI available at http://localhost:8080/swagger-ui.html -->
         <!-- Raw JSON spec at http://localhost:8080/v3/api-docs -->
